@@ -1,35 +1,41 @@
-// Project: Smart Temperature Alert System (Initial v1.0 - Contains QA Bugs)
-const int tempPin = A0;     // LM35 Temperature Sensor
-const int redLed = 13;      // Overheat Warning LED
-const int greenLed = 12;    // Normal Operation LED
-const int buzzer = 8;       // Alert Buzzer
+// Project: Smart Temperature Alert System (Fixed v2.0)
+const int tempPin = A0;
+const int redLed = 13;
+const int greenLed = 12;
+const int buzzer = 8;
+
+unsigned long previousMillis = 0;
+const long interval = 500; // Non-blocking 500ms sampling
+bool alertState = false;
 
 void setup() {
   Serial.begin(9600);
   pinMode(redLed, OUTPUT);
-  // BUG 1: Forgot pinMode(greenLed, OUTPUT) and pinMode(buzzer, OUTPUT)
+  pinMode(greenLed, OUTPUT); // Fixed Issue #1
+  pinMode(buzzer, OUTPUT);   // Fixed Issue #1
 }
 
 void loop() {
-  int rawValue = analogRead(tempPin);
-  // BUG 2: Wrong ADC reference formula (using 3.3V math on a 5V Arduino Uno)
-  float voltage = rawValue * (3.3 / 1024.0); 
-  float tempC = voltage * 100.0;
+  unsigned long currentMillis = millis();
+  if (currentMillis - previousMillis >= interval) { // Fixed Issue #4
+    previousMillis = currentMillis;
 
-  Serial.print("Temperature: ");
-  Serial.println(tempC);
+    int rawValue = analogRead(tempPin);
+    float voltage = rawValue * (5.0 / 1024.0); // Fixed Issue #2
+    float tempC = voltage * 100.0;
 
-  // BUG 3: No hysteresis (causes rapid LED/buzzer flickering around 30.0°C)
-  if (tempC > 30.0) {
-    digitalWrite(redLed, HIGH);
-    digitalWrite(greenLed, LOW);
-    digitalWrite(buzzer, HIGH);
-  } else {
-    digitalWrite(redLed, LOW);
-    digitalWrite(greenLed, HIGH);
-    digitalWrite(buzzer, LOW);
+    Serial.print("Temperature (°C): ");
+    Serial.println(tempC);
+
+    // Fixed Issue #3: Added 2°C Hysteresis (Trigger at 30°C, Reset below 28°C)
+    if (tempC >= 30.0) {
+      alertState = true;
+    } else if (tempC <= 28.0) {
+      alertState = false;
+    }
+
+    digitalWrite(redLed, alertState ? HIGH : LOW);
+    digitalWrite(greenLed, alertState ? LOW : HIGH);
+    digitalWrite(buzzer, alertState ? HIGH : LOW);
   }
-  
-  // BUG 4: Blocking delay(5000) makes system unresponsive to sudden spikes
-  delay(5000); 
 }
